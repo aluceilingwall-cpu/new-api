@@ -1,4 +1,4 @@
-name: Build Binary from Dockerfile
+name: Build Binary
 
 on:
   push:
@@ -11,18 +11,18 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build using Docker
+      - name: Build new-api binary
         run: |
-          docker build --target builder -t new-api-builder .
-          docker create --name extract new-api-builder
-          docker cp extract:/app/new-api ./new-api
-          docker rm extract
+          docker build --target builder -t new-api .
+          docker create --name tmp new-api
+          docker cp tmp:/app/new-api ./new-api
+          docker rm tmp
 
-      - name: Upload binary
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: new-api-linux-amd64
+          name: new-api
           path: new-api
