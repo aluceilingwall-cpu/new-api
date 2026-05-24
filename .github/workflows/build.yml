@@ -3,34 +3,26 @@ name: Build Binary from Dockerfile
 on:
   push:
     branches: [ main ]
+  workflow_dispatch:
   schedule:
     - cron: '0 1 * * *'
-  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Build builder stage
+      - name: Build using Docker
         run: |
-          docker build -t new-api-builder . --target=builder
-          docker create --name temp new-api-builder
-          docker cp temp:/app/new-api ./new-api
-          docker rm temp
+          docker build --target builder -t new-api-builder .
+          docker create --name extract new-api-builder
+          docker cp extract:/app/new-api ./new-api
+          docker rm extract
 
-      - name: Delete old latest release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release delete latest -y 2>/dev/null || true
-
-      - name: Upload binary to release
-        uses: softprops/action-gh-release@v2
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: latest
-          name: Latest Binary
-          files: ./new-api
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: new-api-linux-amd64
+          path: new-api
