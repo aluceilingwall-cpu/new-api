@@ -1,4 +1,4 @@
-name: Sync Upstream
+name: Sync Upstream QuantumNous/new-api
 
 on:
   schedule:
@@ -14,7 +14,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Sync from QuantumNous/new-api
+      - name: Sync from upstream
         uses: aormsby/Fork-Sync-With-Upstream-action@v3.4
         with:
           upstream_repository: QuantumNous/new-api
