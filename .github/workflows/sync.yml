@@ -1,17 +1,18 @@
 name: Sync Upstream
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # 允许手动触发
   schedule:
-    - cron: '0 0 * * *'
+    - cron: '0 0 * * *' # 每天 UTC 0点（北京时间早上8点）自动执行
 
 jobs:
   sync:
     runs-on: ubuntu-latest
+    name: Sync upstream changes
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # 获取完整的 git 历史记录，防止同步出错
 
       - name: Sync QuantumNous/new-api
         uses: aormsby/Fork-Sync-With-Upstream-action@v3.4
@@ -19,4 +20,5 @@ jobs:
           upstream_sync_repo: QuantumNous/new-api
           upstream_sync_branch: main
           target_sync_branch: main
-          target_repo_token: ${{ secrets.GITHUB_TOKEN }}
+          target_repo_token: ${{ secrets.GITHUB_TOKEN }} # 使用 GitHub 自动提供的令牌
+          # test_mode: false # 默认为 false，设为 true 可以进行试运行而不实际提交更改
