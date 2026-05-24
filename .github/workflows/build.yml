@@ -16,13 +16,22 @@ jobs:
 
       - name: Build new-api binary
         run: |
-          docker build --target builder -t new-api .
-          docker create --name tmp new-api
-          docker cp tmp:/app/new-api ./new-api
-          docker rm tmp
+          # 使用多阶段构建的 builder 阶段进行编译
+          docker build --target builder -t new-api-builder .
+          # 创建临时容器提取二进制文件
+          docker create --name tmp-extract new-api-builder
+          docker cp tmp-extract:/app/new-api ./new-api
+          # 清理临时资源
+          docker rm tmp-extract
+          docker rmi new-api-builder
+          
+          # 赋予执行权限并打印大小以便检查
+          chmod +x ./new-api
+          echo "Binary size: $(stat -c%s ./new-api) bytes"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: new-api
+          name: new-api-linux-amd64
           path: new-api
+          retention-days: 7  # 仅保留最近7天的构建产物，节省空间
