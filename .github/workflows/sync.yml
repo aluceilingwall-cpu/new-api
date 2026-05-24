@@ -1,9 +1,9 @@
 name: Sync Upstream
 
 on:
+  workflow_dispatch:
   schedule:
     - cron: '0 0 * * *'
-  workflow_dispatch:
 
 jobs:
   sync:
@@ -13,7 +13,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Sync upstream repo
+      - name: Sync QuantumNous/new-api
         uses: aormsby/Fork-Sync-With-Upstream-action@v3.4
         with:
           upstream_sync_repo: QuantumNous/new-api
