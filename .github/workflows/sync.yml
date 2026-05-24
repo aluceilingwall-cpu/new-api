@@ -1,24 +1,78 @@
-name: Sync Upstream
+name: Sync Upstream & Auto Release
 
 on:
-  workflow_dispatch: # 允许手动触发
+  workflow_dispatch:
   schedule:
-    - cron: '0 0 * * *' # 每天 UTC 0点（北京时间早上8点）自动执行
+    - cron: '0 0 * * *' # 每天北京时间早上8点自动执行
+
+permissions:
+  contents: write # 必须：允许创建 Release 和上传附件
 
 jobs:
-  sync:
+  sync-and-release:
     runs-on: ubuntu-latest
-    name: Sync upstream changes
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # 获取完整的 git 历史记录，防止同步出错
+    outputs:
+      has_new_commits: ${{ steps.sync.outputs.has_new_commits }}
+      version: ${{ steps.get_version.outputs.version }}
 
-      - name: Sync QuantumNous/new-api
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ========== 1. 同步上游 ==========
+      - name: Sync upstream
+        id: sync
         uses: aormsby/Fork-Sync-With-Upstream-action@v3.4
         with:
           upstream_sync_repo: QuantumNous/new-api
           upstream_sync_branch: main
           target_sync_branch: main
-          target_repo_token: ${{ secrets.GITHUB_TOKEN }} # 使用 GitHub 自动提供的令牌
-          # test_mode: false # 默认为 false，设为 true 可以进行试运行而不实际提交更改
+          target_repo_token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ========== 2. 读取版本号（仅更新时执行） ==========
+      - name: Get version
+        id: get_version
+        if: steps.sync.outputs.has_new_commits == 'true'
+        run: |
+          VERSION=$(cat VERSION)
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      # ========== 3. 安装 Go（仅更新时执行） ==========
+      - name: Setup Go
+        if: steps.sync.outputs.has_new_commits == 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      # ========== 4. 编译 amd64 二进制（仅更新时执行） ==========
+      - name: Build binary
+        if: steps.sync.outputs.has_new_commits == 'true'
+        env:
+          CGO_ENABLED: "0"
+          GOOS: linux
+          GOARCH: amd64
+        run: |
+          go mod download && go mod verify
+          go build \
+            -ldflags="-s -w -X 'github.com/QuantumNous/new-api/common.Version=${{ steps.get_version.outputs.version }}'" \
+            -trimpath \
+            -o new-api-linux-amd64
+          chmod +x new-api-linux-amd64
+
+      # ========== 5. 自动创建/更新 Release（仅更新时执行） ==========
+      - name: Create or Update Release
+        if: steps.sync.outputs.has_new_commits == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.get_version.outputs.version }}
+          name: v${{ steps.get_version.outputs.version }}
+          body: |
+            🤖 Auto-synced from upstream QuantumNous/new-api
+            Commit: ${{ github.sha }}
+          files: new-api-linux-amd64
+          draft: false
+          prerelease: false
+          make_latest: true
