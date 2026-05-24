@@ -10,6 +10,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true  # ✅ 修正缩进：与 runs-on 对齐
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,14 +22,11 @@ jobs:
           docker build -t new-api-built .
 
           echo "=== 探测容器内文件结构 ==="
-          # 使用 --entrypoint 覆盖默认启动命令，防止服务运行导致超时
           docker run --rm --entrypoint /bin/sh new-api-built -c "ls -la /build /app /dist / 2>/dev/null || true"
 
           echo "=== 提取二进制文件 ==="
-          # 创建临时容器用于复制文件
           docker create --name tmp_extract --entrypoint /bin/sh new-api-built
           
-          # 优先尝试从 /build 目录提取（基于日志分析）
           if docker cp tmp_extract:/build/new-api ./new-api 2>/dev/null; then
             echo "✅ 成功从 /build/new-api 提取"
           elif docker cp tmp_extract:/app/new-api ./new-api 2>/dev/null; then
@@ -40,10 +39,8 @@ jobs:
             exit 1
           fi
 
-          # 清理临时容器
           docker rm -f tmp_extract
 
-          # 设置执行权限并验证
           chmod +x ./new-api
           ls -lh ./new-api
           file ./new-api
