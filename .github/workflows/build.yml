@@ -27,7 +27,7 @@ jobs:
           gh release delete latest -y 2>/dev/null || true
 
       - name: Upload binary to release
-        uses: softprops/softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
           name: Latest Binary
