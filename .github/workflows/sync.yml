@@ -1,4 +1,4 @@
-name: Sync Upstream QuantumNous/new-api
+name: Sync Upstream
 
 on:
   schedule:
@@ -12,9 +12,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Sync upstream
+      - name: Sync upstream repo
         uses: aormsby/Fork-Sync-With-Upstream-action@v3.4
         with:
           upstream_sync_repo: QuantumNous/new-api
