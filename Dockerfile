@@ -29,8 +29,9 @@ COPY . .
 COPY --from=builder /build/dist ./web/default/dist
 COPY --from=builder-classic /build/dist ./web/classic/dist
 
-RUN go build -ldflags="-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(cat VERSION)'" \
-    -trimpath -o new-api
+# 先同步依赖，再编译（移除无效的 VERSION 注入）
+RUN go mod tidy && \
+    go build -ldflags="-s -w" -trimpath -o new-api
 
 # ==================== 运行时镜像 ====================
 FROM debian:bookworm-slim@sha256:f06537653ac770703bc45b4b113475bd402f451e85223f0f2837acbf89ab020a
