@@ -3,13 +3,18 @@ name: Sync Upstream & Auto Release
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 0 * * *' # 每天北京时间早上8点自动执行
+    - cron: '0 0 * * *'
 
 permissions:
   contents: write
 
+env:
+  # ✅ 主动启用 Node.js 24，消除 deprecation warning
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   sync-and-release:
+    # ✅ 仅保留 ubuntu-latest，彻底移除 macOS
     runs-on: ubuntu-latest
     outputs:
       has_new_commits: ${{ steps.sync.outputs.has_new_commits }}
@@ -31,24 +36,22 @@ jobs:
           target_sync_branch: main
           target_repo_token: ${{ secrets.GITHUB_TOKEN }}
 
-      # ========== 2. 🔧 强制修复 go.mod（防止被上游覆盖） ==========
+      # ========== 2. 🔧 强制修复 go.mod ==========
       - name: Fix invalid Go version in go.mod
         if: steps.sync.outputs.has_new_commits == 'true'
         run: |
           CURRENT_GO=$(grep '^go ' go.mod | awk '{print $2}')
           TARGET_GO="1.24.4"
-          
           if [ "$CURRENT_GO" != "$TARGET_GO" ]; then
-            echo "⚠️ Detected invalid Go version: $CURRENT_GO, fixing to $TARGET_GO..."
+            echo "⚠️ Fixing go.mod: $CURRENT_GO → $TARGET_GO"
             sed -i "s/^go .*/go ${TARGET_GO}/" go.mod
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git add go.mod
             git commit -m "chore(ci): auto-fix go.mod version to ${TARGET_GO}"
             git push
-            echo "✅ go.mod fixed and pushed."
           else
-            echo "✅ go.mod version is correct ($TARGET_GO), no fix needed."
+            echo "✅ go.mod version is correct ($TARGET_GO)"
           fi
 
       # ========== 3. 生成版本号 ==========
@@ -68,7 +71,7 @@ jobs:
           go-version-file: 'go.mod'
           cache: true
 
-      # ========== 5. 编译二进制 ==========
+      # ========== 5. 编译 Linux amd64 ==========
       - name: Build binary
         if: steps.sync.outputs.has_new_commits == 'true'
         env:
@@ -83,7 +86,7 @@ jobs:
             -o new-api-linux-amd64
           chmod +x new-api-linux-amd64
 
-      # ========== 6. 自动发布 Release ==========
+      # ========== 6. 发布 Release ==========
       - name: Create or Update Release
         if: steps.sync.outputs.has_new_commits == 'true'
         uses: softprops/action-gh-release@v2
