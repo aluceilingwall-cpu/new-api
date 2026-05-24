@@ -1,0 +1,37 @@
+name: Build Binary
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 1 * * *'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build builder stage only
+        run: |
+          docker build -t new-api-builder . --target=builder
+          docker create --name temp new-api-builder
+          # 从容器拷贝编译好的二进制
+          docker cp temp:/app/new-api ./new-api
+          docker rm temp
+
+      - name: Delete old latest release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete latest -y || true
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest Binary
+          files: ./new-api
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
