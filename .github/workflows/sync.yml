@@ -31,15 +31,17 @@ jobs:
           target_sync_branch: main
           target_repo_token: ${{ secrets.GITHUB_TOKEN }}
 
-      # ========== 2. 读取版本号（仅更新时执行） ==========
-      - name: Get version
+      # ========== 2. 生成版本号（基于日期+Commit短Hash） ==========
+      - name: Generate version
         id: get_version
         if: steps.sync.outputs.has_new_commits == 'true'
         run: |
-          VERSION=$(cat VERSION)
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          VERSION="auto-${SHORT_SHA}"
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Generated version: ${VERSION}"
 
-      # ========== 3. 安装 Go（仅更新时执行） ==========
+      # ========== 3. 安装 Go ==========
       - name: Setup Go
         if: steps.sync.outputs.has_new_commits == 'true'
         uses: actions/setup-go@v5
@@ -47,7 +49,7 @@ jobs:
           go-version-file: 'go.mod'
           cache: true
 
-      # ========== 4. 编译 amd64 二进制（仅更新时执行） ==========
+      # ========== 4. 编译 amd64 二进制（纯静态编译，无版本注入） ==========
       - name: Build binary
         if: steps.sync.outputs.has_new_commits == 'true'
         env:
@@ -57,21 +59,23 @@ jobs:
         run: |
           go mod download && go mod verify
           go build \
-            -ldflags="-s -w -X 'github.com/QuantumNous/new-api/common.Version=${{ steps.get_version.outputs.version }}'" \
+            -ldflags="-s -w" \
             -trimpath \
             -o new-api-linux-amd64
           chmod +x new-api-linux-amd64
 
-      # ========== 5. 自动创建/更新 Release（仅更新时执行） ==========
+      # ========== 5. 自动创建/更新 Release ==========
       - name: Create or Update Release
         if: steps.sync.outputs.has_new_commits == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.get_version.outputs.version }}
-          name: v${{ steps.get_version.outputs.version }}
+          tag_name: ${{ steps.get_version.outputs.version }}
+          name: ${{ steps.get_version.outputs.version }}
           body: |
             🤖 Auto-synced from upstream QuantumNous/new-api
-            Commit: ${{ github.sha }}
+            
+            - **Commit**: `${{ github.sha }}`
+            - **Build Time**: ${{ github.event.head_commit.timestamp || 'N/A' }}
           files: new-api-linux-amd64
           draft: false
           prerelease: false
