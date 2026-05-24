@@ -16,39 +16,41 @@ jobs:
 
       - name: Build and Extract
         run: |
-          # 1. 直接构建镜像，不依赖特定的 target
           echo "=== 正在构建 Docker 镜像 ==="
           docker build -t new-api-built .
 
-          # 2. 启动容器并查找关键文件（比如 main.go 所在目录或可执行文件）
-          echo "=== 查找容器内的文件结构 ==="
-          # 尝试列出根目录和常见目录
-          docker run --rm new-api-built find / -type f -name "new-api" 2>/dev/null || true
-          docker run --rm new-api-built ls -la / /build /app /dist 2>/dev/null || true
+          echo "=== 探测容器内文件结构 ==="
+          # 使用 --entrypoint 覆盖默认启动命令，防止服务运行导致超时
+          docker run --rm --entrypoint /bin/sh new-api-built -c "ls -la /build /app /dist / 2>/dev/null || true"
 
-          # 3. 根据查找结果，尝试提取文件
-          # 策略：先尝试 /app，再尝试 /build，最后尝试根目录
-          if docker run --rm new-api-built test -f /app/new-api; then
-            echo "✅ 发现文件在 /app/"
-            docker create --name tmp_container new-api-built
-            docker cp tmp_container:/app/new-api ./new-api
-            docker rm tmp_container
-          elif docker run --rm new-api-built test -f /build/new-api; then
-            echo "✅ 发现文件在 /build/"
-            docker create --name tmp_container new-api-built
-            docker cp tmp_container:/build/new-api ./new-api
-            docker rm tmp_container
+          echo "=== 提取二进制文件 ==="
+          # 创建临时容器用于复制文件
+          docker create --name tmp_extract --entrypoint /bin/sh new-api-built
+          
+          # 优先尝试从 /build 目录提取（基于日志分析）
+          if docker cp tmp_extract:/build/new-api ./new-api 2>/dev/null; then
+            echo "✅ 成功从 /build/new-api 提取"
+          elif docker cp tmp_extract:/app/new-api ./new-api 2>/dev/null; then
+            echo "✅ 成功从 /app/new-api 提取"
+          elif docker cp tmp_extract:/new-api ./new-api 2>/dev/null; then
+            echo "✅ 成功从 /new-api 提取"
           else
-            echo "❌ 无法找到 new-api 二进制文件！请检查 Dockerfile 的输出路径。"
+            echo "❌ 未找到 new-api 二进制文件"
+            docker rm -f tmp_extract
             exit 1
           fi
 
-          # 4. 设置权限并检查
+          # 清理临时容器
+          docker rm -f tmp_extract
+
+          # 设置执行权限并验证
           chmod +x ./new-api
           ls -lh ./new-api
+          file ./new-api
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: new-api
+          name: new-api-linux-amd64
           path: new-api
+          retention-days: 7
